@@ -1,1 +1,91 @@
 # Tabla_-de-_desembolsos
+library(readxl)
+library(zoo)
+library(dplyr)
+library(reshape2)
+library(xlsx)
+library(sqldf)
+
+### leer el directorio en el que están los archivos:
+# archivo descargado de la superintendencia financiera, donde las 8 priemras filas tienen el encabezado
+# MODALIDAD_HOMOLOGACION.xlsx
+#CODIGO_NOMBRE_BANCOS.xlsx
+setwd("~/trabajo1_base")
+
+
+
+
+
+Desembolsos_interno <- function(periodo,tipo=list("Banco","CCF","CF"),nombre_arch){
+  MODALIDAD_HOMOLOGACION <- read_excel("MODALIDAD_HOMOLOGACION.xlsx")
+  CODIGO_NOMBRE_BANCOS <- read_excel("CODIGO_NOMBRE_BANCOS.xlsx")
+  if(tipo=="Banco" | tipo=="CCF" | tipo=="CF"){
+    hoja <- ifelse(tipo=="Banco",1,ifelse(tipo=="CCF",2,3))
+    tbl_201902<- read_excel(nombre_arch, skip = 8,sheet=hoja)
+    tbl_201902_1 <- tbl_201902 
+    tbl_201902_1$MODALIDAD <- na.locf(tbl_201902$MODALIDAD)
+    tbl_201902_1$PRODUCTO <- na.locf(tbl_201902$PRODUCTO)
+    tbl_201902_1[is.na(tbl_201902_1)]=0
+    
+    tbl_201902_2 <- tbl_201902_1%>%melt(id=c("MODALIDAD","PRODUCTO","CONCEPTO"),value.name = "Valor")%>%
+      mutate(cod_ent=substr(variable,start=1,stop=6))%>%mutate(cod_ent= case_when( cod_ent=="999 TO"~"999",TRUE~cod_ent))%>%
+      select(MODALIDAD,PRODUCTO,CONCEPTO,cod_ent,Valor,-variable)
+    tbl_201902_3 <- tbl_201902_2%>%mutate(Corte=rep(periodo,dim(tbl_201902_2)[1]))%>%
+      mutate(Modalidad_Tipo_Pto=case_when(
+        MODALIDAD=="CONSUMO"~ paste("CO",PRODUCTO,sep = "_"),
+        MODALIDAD=="LEASING"~ paste("LE",PRODUCTO,sep = "_"),
+        MODALIDAD=="VIVIENDA"~ paste("VI",PRODUCTO,sep = "_"),
+        MODALIDAD=="MICROCREDITO"~ paste("MI",PRODUCTO,sep = "_")
+      ))%>% mutate(Tipo_Final_Pdto= merge(x=.,y=MODALIDAD_HOMOLOGACION,by="Modalidad_Tipo_Pto",all.x=TRUE)[,8])%>%
+      mutate(Entidad=merge(x=.,y=CODIGO_NOMBRE_BANCOS[,-2],by.x="cod_ent",by.y="Cod_Banco",all.x=TRUE)[,9])
+    tbl_201902_3$CONCEPTO[tbl_201902_3$CONCEPTO=="Monto"]="Valor"; tbl_201902_3$CONCEPTO[tbl_201902_3$CONCEPTO=="Creditos"]="N_Creditos"
+    tbl_201902_4 <- dcast(tbl_201902_3,MODALIDAD+PRODUCTO+cod_ent+Corte+Modalidad_Tipo_Pto+Tipo_Final_Pdto+Entidad~CONCEPTO, value.var="Valor")%>%
+           mutate(Tipo_Ent=tipo)
+    return(tbl_201902_4)
+  }
+ else return(cat("El Valor en Tipo no es admisible"))  
+  }
+
+
+Desembolsos_completo <- function(nombre_arch,nombre_final=paste("tbl_desembolsos",periodo,format(Sys.time(), "%Y%m%d"),".csv",sep = "_")){
+periodo=paste(substr(nombre_arch,start = 3,stop = 6),substr(nombre_arch,start = 1,stop = 2),sep = "")
+peri=periodo
+Bancos <- Desembolsos_interno(periodo = peri,tipo = "Banco",nombre_arch)
+CCF <- Desembolsos_interno(periodo = peri,tipo = "CCF",nombre_arch)
+CF <- Desembolsos_interno(periodo = peri,tipo = "CF",nombre_arch)
+completo <- rbind(Bancos,CCF,CF)
+completo_2 <- completo%>%mutate(AG_Trimestre=case_when(
+ substr(Corte,start=5,stop=6)=="01" |  substr(Corte,start=5,stop=6)=="02" | substr(Corte,start=5,stop=6)=="03"~paste(substr(Corte,start=1,stop=4),"I",sep = "_"),
+ substr(Corte,start=5,stop=6)=="04" |  substr(Corte,start=5,stop=6)=="05" | substr(Corte,start=5,stop=6)=="06"~paste(substr(Corte,start=1,stop=4),"II",sep = "_"),
+ substr(Corte,start=5,stop=6)=="07" |  substr(Corte,start=5,stop=6)=="08" | substr(Corte,start=5,stop=6)=="09"~paste(substr(Corte,start=1,stop=4),"III",sep = "_"),
+ substr(Corte,start=5,stop=6)=="10" |  substr(Corte,start=5,stop=6)=="11"| substr(Corte,start=5,stop=6)=="12"~ paste(substr(Corte,start=1,stop=4),"IV",sep = "_")
+              ))%>% mutate(AG_Semestre=case_when(
+substr(Corte,start=5,stop=6)=="01" |substr(Corte,start=5,stop=6)=="02" |substr(Corte,start=5,stop=6)=="03" |substr(Corte,start=5,stop=6)=="04" |substr(Corte,start=5,stop=6)=="05" | substr(Corte,start=5,stop=6)<="06"~paste(substr(Corte,start=1,stop=4),"I",sep = "_"),
+substr(Corte,start=5,stop=6)=="07" |substr(Corte,start=5,stop=6)=="08" |substr(Corte,start=5,stop=6)=="09" |substr(Corte,start=5,stop=6)=="10" |substr(Corte,start=5,stop=6)=="11" | substr(Corte,start=5,stop=6)<="12"~paste(substr(Corte,start=1,stop=4),"II",sep = "_")
+              ))%>%mutate(M_Corte_Trim=case_when(
+substr(Corte,start=5,stop=6)=="03"~paste(substr(Corte,start=1,stop=4),"I",sep = "_"),
+substr(Corte,start=5,stop=6)=="06"~paste(substr(Corte,start=1,stop=4),"II",sep = "_"),
+substr(Corte,start=5,stop=6)=="09"~paste(substr(Corte,start=1,stop=4),"III",sep = "_"),
+substr(Corte,start=5,stop=6)=="12"~ paste(substr(Corte,start=1,stop=4),"IV",sep = "_"),
+TRUE~"NA"))%>% mutate(M_Corte_Sem=case_when(
+  substr(Corte,start=5,stop=6)=="06"~paste(substr(Corte,start=1,stop=4),"I",sep = "_"),
+  substr(Corte,start=5,stop=6)=="12"~ paste(substr(Corte,start=1,stop=4),"II",sep = "_"),
+  TRUE~"NA"))%>% mutate(Clas_pdto_MIS=ifelse(substr(Tipo_Final_Pdto,start=1,stop=2)=="CO"&Tipo_Final_Pdto!="CO_T_Credito","CO_SIN_TDC",Tipo_Final_Pdto)) #
+
+completo_3 <- completo_2[completo_2$N_Creditos!=0 & completo_2$Valor!=0,]%>%select(MODALIDAD,PRODUCTO,cod_ent,N_Creditos,Valor,Corte,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Entidad,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Clas_pdto_MIS,Tipo_Ent)
+
+    write.csv(completo_3[,-1], file = nombre_final,row.names=FALSE)
+agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS,sum(N_Creditos) as Suma_de_N_Creditos,avg(Valor) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
+                  from completo_3
+                  group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS')
+write.csv(agrupado, file = paste("TD_BaseInsumo",peri,".csv"),row.names=FALSE)
+}
+
+
+
+Desembolsos_completo(nombre_arch = "022019desembolsoaprobaciones.xls")
+
+
+
+
+
