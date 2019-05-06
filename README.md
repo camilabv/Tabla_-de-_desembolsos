@@ -20,12 +20,7 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
 #             si es TIPO=1 entonces es nombre es de tipo Ej."022019desembolsoaprobaciones.xls" DEBE TENER EL PERIODO AL INICIO EN ESE ORDEN
 #             si es TIPO=2 entonces es nombre es de tipo Ej.'*desembolsoaprobaciones.xls' y tomará todos los excel con este tipo de nombre que esten en la carpeta
   #nombre_final: No es obligatorio ponerlo. Será de la forma Ej. "nombre_archivo.csv"
-  library(readxl)
-  library(zoo)
-  library(dplyr)
-  library(reshape2)
-  library(xlsx)
-  library(sqldf)
+
   
       
   Desembolsos_interno <- function(periodo,tipo=list("Banco","CCF","CF"),nombre_arch){
