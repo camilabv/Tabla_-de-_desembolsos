@@ -1,3 +1,6 @@
+#----------------------------------------
+#---------- Código desembolsos ----------
+
 library(readxl)
 library(zoo)
 library(dplyr)
@@ -21,7 +24,7 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
 #             si es TIPO=2 entonces es nombre es de tipo Ej.'*desembolsoaprobaciones.xls' y tomará todos los excel con este tipo de nombre que esten en la carpeta
   #nombre_final: No es obligatorio ponerlo. Será de la forma Ej. "nombre_archivo.csv"
 
-  
+
       
   Desembolsos_interno <- function(periodo,tipo=list("Banco","CCF","CF"),nombre_arch){
     MODALIDAD_HOMOLOGACION <- read_excel("MODALIDAD_HOMOLOGACION.xlsx")
@@ -43,8 +46,10 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
           MODALIDAD=="LEASING"~ paste("LE",PRODUCTO,sep = "_"),
           MODALIDAD=="VIVIENDA"~ paste("VI",PRODUCTO,sep = "_"),
           MODALIDAD=="MICROCREDITO"~ paste("MI",PRODUCTO,sep = "_")
-        ))%>% mutate(Tipo_Final_Pdto= merge(x=.,y=MODALIDAD_HOMOLOGACION,by="Modalidad_Tipo_Pto",all.x=TRUE)[,8])%>%
-        mutate(Entidad=merge(x=.,y=CODIGO_NOMBRE_BANCOS[,-2],by.x="cod_ent",by.y="Cod_Banco",all.x=TRUE)[,9])
+        ))%>%mutate(Modalidad_Tipo_Pto=trimws(Modalidad_Tipo_Pto))
+      tbl_201902_3_1 <- merge(x=tbl_201902_3,y=MODALIDAD_HOMOLOGACION,by="Modalidad_Tipo_Pto",all.x=TRUE);colnames(tbl_201902_3_1) <- c(colnames(tbl_201902_3_1)[1:7],"Tipo_Final_Pdto")
+      tbl_201902_3_2 <- merge(x=tbl_201902_3_1,y=CODIGO_NOMBRE_BANCOS[,-2],by.x="cod_ent",by.y="Cod_Banco",all.x=TRUE);colnames(tbl_201902_3_2) <- c(colnames(tbl_201902_3_2)[1:8],"Entidad")
+      tbl_201902_3 <- tbl_201902_3_2
       tbl_201902_3$CONCEPTO[tbl_201902_3$CONCEPTO=="Monto"]="Valor"; tbl_201902_3$CONCEPTO[tbl_201902_3$CONCEPTO=="Creditos"]="N_Creditos"
       tbl_201902_4 <- dcast(tbl_201902_3,MODALIDAD+PRODUCTO+cod_ent+Corte+Modalidad_Tipo_Pto+Tipo_Final_Pdto+Entidad~CONCEPTO, value.var="Valor")%>%
         mutate(Tipo_Ent=tipo)
@@ -155,6 +160,3 @@ else{
   if(tipo>2){cat("ERROR:Tipo solo puede tener valores 1 o 2")} 
    }
  }
-
-
-
