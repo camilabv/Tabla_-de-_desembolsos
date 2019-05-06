@@ -98,11 +98,68 @@ Desembolsos_completo(nombre_arch = "022019desembolsoaprobaciones.xls")
 # parte 2: varios archivos leerlos desde la carpeta y crear el historico y quizas que haga el reporte conlos productos
 
 
-
-file.list <- list.files(pattern='*desembolsoaprobaciones.xls')
+Desembolsos_varios <- function(retur=1,arch=1,nombre_comun,nombre_final=paste("tbl_desembolsos",format(Sys.time(), "%Y%m%d"),".csv",sep = "_")){
+# el nombre comun debe ser de la forma  Ej= '*desembolsoaprobaciones.xls'
+  
+file.list <- list.files(pattern=nombre_comun)
 n <- length(file.list);tabla_c <- rep(0,14)
 for( i in 1:n){
   tabla <- Desembolsos_completo(arch=2,retur=2,nombre_arch = file.list[i])
   tabla_c <- rbind(tabla_c,tabla)
 }
 tabla_c <- tabla_c[-1,]
+
+agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Clas_pdto_MIS,sum(N_Creditos) as Suma_de_N_Creditos,avg(Valor) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
+                  from tabla_c
+                  group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Clas_pdto_MIS')
+if(arch==1){
+  write.csv(tabla_c, file = nombre_final,row.names=FALSE)
+  write.csv(agrupado, file = paste("TD_BaseInsumo",format(Sys.time(), "%Y%m%d"),".csv"),row.names=FALSE)
+}
+
+if(retur==2){ return(tabla_c )}
+else return()
+}
+
+
+######### parte en la que decide si es uno solo o varios archivos
+
+Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=paste("tbl_desembolsos",periodo,format(Sys.time(), "%Y%m%d"),".csv",sep = "_")){
+# TIPO=1 Es para la tabla  de un solo mes, TIPO=2  es para la tabla de varios meses
+if(missing(nombre_inicial)){ return( cat("ERROR: Ingrese un nombre inicial válido"))}
+else{  
+  if(tipo==1){
+    if(missing(nombre_final)){
+      if(missing(retur1) & missing(arch1)){return(Desembolsos_completo(nombre_arch = nombre_inicial))}
+      if(missing(retur1)==FALSE & missing(arch1)){return(Desembolsos_completo(retur = retur1,nombre_arch = nombre_inicial))}
+      if(missing(retur1) & missing(arch1)==FALSE){return(Desembolsos_completo(arch = arch1,nombre_arch = nombre_inicial))}
+      if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_completo(retur = retur1,arch = arch1,nombre_arch = nombre_inicial))}
+       }
+    else{
+      if(missing(retur1) & missing(arch1)){return(Desembolsos_completo(nombre_arch = nombre_inicial,nombre_final = nombre_final))}
+      if(missing(retur1)==FALSE & missing(arch1)){return(Desembolsos_completo(retur = retur1,nombre_arch = nombre_inicial,nombre_final = nombre_final))}
+      if(missing(retur1) & missing(arch1)==FALSE){return(Desembolsos_completo(arch = arch1,nombre_arch = nombre_inicial,nombre_final = nombre_final))}
+      if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_completo(retur = retur1,arch = arch1,nombre_arch = nombre_inicial,nombre_final = nombre_final))}
+       }
+     }
+
+  if(tipo==2){
+    if(missing(nombre_final)){
+      if(missing(retur1) & missing(arch1)){return(Desembolsos_varios(nombre_comun = nombre_inicial))}
+      if(missing(retur1)==FALSE & missing(arch1)){return(Desembolsos_varios(retur = retur1,nombre_comun = nombre_inicial))}
+      if(missing(retur1) & missing(arch1)==FALSE){return(Desembolsos_varios(arch = arch1,nombre_comun = nombre_inicial))}
+      if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_varios(retur = retur1,arch = arch1,nombre_comun = nombre_inicial))}
+    }
+    else{
+      if(missing(retur1) & missing(arch1)){return(Desembolsos_varios(nombre_arch = nombre_comun,nombre_final = nombre_final))}
+      if(missing(retur1)==FALSE & missing(arch1)){return(Desembolsos_varios(retur = retur1,nombre_comun = nombre_inicial,nombre_final = nombre_final))}
+      if(missing(retur1) & missing(arch1)==FALSE){return(Desembolsos_varios(arch = arch1,nombre_comun= nombre_inicial,nombre_final = nombre_final))}
+      if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_varios(retur = retur1,arch = arch1,nombre_comun= nombre_inicial,nombre_final = nombre_final))}
+      }
+    }  
+  if(tipo>2){cat("ERROR:Tipo solo puede tener valores 1 o 2")} 
+   }
+  }
+
+
+
