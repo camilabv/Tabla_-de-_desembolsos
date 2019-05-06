@@ -1,4 +1,3 @@
-# Tabla_-de-_desembolsos
 library(readxl)
 library(zoo)
 library(dplyr)
@@ -47,7 +46,10 @@ Desembolsos_interno <- function(periodo,tipo=list("Banco","CCF","CF"),nombre_arc
   }
 
 
-Desembolsos_completo <- function(nombre_arch,nombre_final=paste("tbl_desembolsos",periodo,format(Sys.time(), "%Y%m%d"),".csv",sep = "_")){
+Desembolsos_completo <- function(retur=1,arch=1,nombre_arch,nombre_final=paste("tbl_desembolsos",periodo,format(Sys.time(), "%Y%m%d"),".csv",sep = "_")){
+
+## con arch=1 genera 2 excel, el 1 es la tabla y el 2 es la tabla agrupada   
+## retur=2 retorna la tabla larga  
 periodo=paste(substr(nombre_arch,start = 3,stop = 6),substr(nombre_arch,start = 1,stop = 2),sep = "")
 peri=periodo
 Bancos <- Desembolsos_interno(periodo = peri,tipo = "Banco",nombre_arch)
@@ -74,11 +76,17 @@ TRUE~"NA"))%>% mutate(M_Corte_Sem=case_when(
 
 completo_3 <- completo_2[completo_2$N_Creditos!=0 & completo_2$Valor!=0,]%>%select(MODALIDAD,PRODUCTO,cod_ent,N_Creditos,Valor,Corte,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Entidad,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Clas_pdto_MIS,Tipo_Ent)
 
-    write.csv(completo_3[,-1], file = nombre_final,row.names=FALSE)
+
 agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS,sum(N_Creditos) as Suma_de_N_Creditos,avg(Valor) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
                   from completo_3
                   group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS')
+if(arch==1){
+write.csv(completo_3[,-1], file = nombre_final,row.names=FALSE)
 write.csv(agrupado, file = paste("TD_BaseInsumo",peri,".csv"),row.names=FALSE)
+}
+
+if(retur==2){ return(completo_3[,-1])}
+else return()
 }
 
 
@@ -86,6 +94,15 @@ write.csv(agrupado, file = paste("TD_BaseInsumo",peri,".csv"),row.names=FALSE)
 Desembolsos_completo(nombre_arch = "022019desembolsoaprobaciones.xls")
 
 
+##############################################################
+# parte 2: varios archivos leerlos desde la carpeta y crear el historico y quizas que haga el reporte conlos productos
 
 
 
+file.list <- list.files(pattern='*desembolsoaprobaciones.xls')
+n <- length(file.list);tabla_c <- rep(0,14)
+for( i in 1:n){
+  tabla <- Desembolsos_completo(arch=2,retur=2,nombre_arch = file.list[i])
+  tabla_c <- rbind(tabla_c,tabla)
+}
+tabla_c <- tabla_c[-1,]
