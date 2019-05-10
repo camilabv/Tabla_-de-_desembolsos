@@ -30,14 +30,14 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
     MODALIDAD_HOMOLOGACION <- read_excel("MODALIDAD_HOMOLOGACION.xlsx")
     CODIGO_NOMBRE_BANCOS <- read_excel("CODIGO_NOMBRE_BANCOS.xlsx")
     if(tipo=="Banco" | tipo=="CCF" | tipo=="CF"){
-      hoja <- ifelse(tipo=="Banco",1,ifelse(tipo=="CCF",2,3))
+      hoja <- ifelse(tipo=="Banco",1,ifelse(tipo=="CCF",3,2))
       tbl_201902<- read_excel(nombre_arch, skip = 8,sheet=hoja)
       tbl_201902_1 <- tbl_201902 
       tbl_201902_1$MODALIDAD <- na.locf(tbl_201902$MODALIDAD)
       tbl_201902_1$PRODUCTO <- na.locf(tbl_201902$PRODUCTO)
       tbl_201902_1[is.na(tbl_201902_1)]=0
       
-      tbl_201902_2 <- tbl_201902_1%>%melt(id=c("MODALIDAD","PRODUCTO","CONCEPTO"),value.name = "Valor")%>%
+      tbl_201902_2 <- tbl_201902_1%>%mutate(PRODUCTO=trimws(PRODUCTO))%>%melt(id=c("MODALIDAD","PRODUCTO","CONCEPTO"),value.name = "Valor")%>%
         mutate(cod_ent=substr(variable,start=1,stop=6))%>%mutate(cod_ent= case_when( cod_ent=="999 TO"~"999",TRUE~cod_ent))%>%
         select(MODALIDAD,PRODUCTO,CONCEPTO,cod_ent,Valor,-variable)
       tbl_201902_3 <- tbl_201902_2%>%mutate(Corte=rep(periodo,dim(tbl_201902_2)[1]))%>%
@@ -87,18 +87,20 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
         substr(Corte,start=5,stop=6)=="12"~ paste(substr(Corte,start=1,stop=4),"II",sep = "_"),
         TRUE~"NA"))%>% mutate(Clas_pdto_MIS=ifelse(substr(Tipo_Final_Pdto,start=1,stop=2)=="CO"&Tipo_Final_Pdto!="CO_T_Credito","CO_SIN_TDC",Tipo_Final_Pdto)) #
     
-    completo_3 <- completo_2[completo_2$N_Creditos!=0 & completo_2$Valor!=0,]%>%select(MODALIDAD,PRODUCTO,cod_ent,N_Creditos,Valor,Corte,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Entidad,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Clas_pdto_MIS,Tipo_Ent)
+    indice_2 <- completo_2$N_Creditos!=0 & completo_2$Valor!=0
+    completo_3 <- completo_2[indice_2,]%>%select(MODALIDAD,PRODUCTO,cod_ent,N_Creditos,Valor,Corte,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Entidad,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Clas_pdto_MIS,Tipo_Ent)
     
     
-    agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS,sum(N_Creditos) as Suma_de_N_Creditos,avg(Valor) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
+    agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS,
+         sum(N_Creditos) as Suma_de_N_Creditos,(sum(Valor)/sum(N_Creditos)) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
                   from completo_3
                   group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,MODALIDAD,Tipo_Final_Pdto,Clas_pdto_MIS')
-    if(arch==1){
-      write.csv(completo_3[,-1], file = nombre_final,row.names=FALSE)
+     if(arch==1){
+      write.csv(completo_3, file = nombre_final,row.names=FALSE)
       write.csv(agrupado, file = paste("TD_BaseInsumo",peri,".csv"),row.names=FALSE)
     }
     
-    if(retur==2){ return(completo_3[,-1])}
+    if(retur==2){ return(completo_3)}
     else return()
   }  
   
@@ -113,11 +115,12 @@ Desembolsos_final <- function(tipo=1,retur1,arch1,nombre_inicial,nombre_final=pa
     }
     tabla_c <- tabla_c[-1,]
     
-    agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Clas_pdto_MIS,sum(N_Creditos) as Suma_de_N_Creditos,avg(Valor) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
+    agrupado <- sqldf('select Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad,Tipo_Final_Pdto,Clas_pdto_MIS,
+sum(N_Creditos) as Suma_de_N_Creditos,(sum(Valor)/sum(N_Creditos)) as Suma_de_Prom_Desem, sum(Valor) as Suma_de_Valor
                       from tabla_c
-                      group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad_Tipo_Pto,Tipo_Final_Pdto,Clas_pdto_MIS')
+                      group by Corte,AG_Trimestre,AG_Semestre,M_Corte_Trim,M_Corte_Sem,Tipo_Ent,Entidad,Modalidad,Tipo_Final_Pdto,Clas_pdto_MIS')
     if(arch==1){
-      write.csv(tabla_c, file = nombre_final,row.names=FALSE)
+      write.csv(tabla_c[,-1], file = nombre_final,row.names=FALSE)
       write.csv(agrupado, file = paste("TD_BaseInsumo",format(Sys.time(), "%Y%m%d"),".csv"),row.names=FALSE)
     }
     
@@ -151,7 +154,7 @@ else{
       if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_varios(retur = retur1,arch = arch1,nombre_comun = nombre_inicial))}
     }
     else{
-      if(missing(retur1) & missing(arch1)){return(Desembolsos_varios(nombre_arch = nombre_comun,nombre_final = nombre_final))}
+      if(missing(retur1) & missing(arch1)){return(Desembolsos_varios(nombre_comun= nombre_inicial,nombre_final = nombre_final))}
       if(missing(retur1)==FALSE & missing(arch1)){return(Desembolsos_varios(retur = retur1,nombre_comun = nombre_inicial,nombre_final = nombre_final))}
       if(missing(retur1) & missing(arch1)==FALSE){return(Desembolsos_varios(arch = arch1,nombre_comun= nombre_inicial,nombre_final = nombre_final))}
       if(missing(retur1)==FALSE & missing(arch1)==FALSE){return(Desembolsos_varios(retur = retur1,arch = arch1,nombre_comun= nombre_inicial,nombre_final = nombre_final))}
@@ -159,4 +162,10 @@ else{
     }  
   if(tipo>2){cat("ERROR:Tipo solo puede tener valores 1 o 2")} 
    }
- }
+}
+
+setwd("~/trabajo1_base/desembolsos")
+Desembolsos_final(tipo = 2,nombre_inicial= "*desembolsoaprobaciones.xls",nombre_final = "desem_completo_hoy.csv")
+Desembolsos_final(tipo = 1,nombre_inicial= "012015desembolsoaprobaciones.xls")
+
+
